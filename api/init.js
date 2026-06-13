@@ -41,6 +41,15 @@ export default async function handler(req, res) {
       );
     `);
 
+    // アクセス状況ログ（プライバシー保護のためIPハッシュを記録）
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS visit_logs (
+        id SERIAL PRIMARY KEY,
+        ip_hash VARCHAR(64) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     client.release();
     return res.status(200).json({ success: true, message: 'Tables initialized successfully' });
   } catch (error) {

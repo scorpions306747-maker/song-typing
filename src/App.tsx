@@ -90,6 +90,7 @@ export default function App() {
   const [showUserSelect, setShowUserSelect] = useState(true);
   const [newUserName, setNewUserName] = useState('');
   const [userError, setUserError] = useState<string | null>(null);
+  const [visitStats, setVisitStats] = useState<{ views: number; uniques: number } | null>(null);
   const gameStartTimeRef = useRef<number>(0);
   const [missFlash, setMissFlash] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -131,6 +132,21 @@ export default function App() {
       } catch (err) {
         console.error('Failed to load users from localStorage:', err);
       }
+
+      // アクセス状況履歴を記録・取得
+      fetch('/api/track-visit', { method: 'POST' })
+        .then(res => {
+          if (!res.ok) throw new Error('API failed');
+          return res.json();
+        })
+        .then(data => {
+          if (data && typeof data.views === 'number') {
+            setVisitStats({ views: data.views, uniques: data.uniques });
+          }
+        })
+        .catch(err => {
+          console.error('Failed to track visit:', err);
+        });
     }
   }, []);
 
@@ -907,6 +923,12 @@ export default function App() {
           </div>
         )}
       </footer>}
+
+      {visitStats && (
+        <div className="visit-counter" style={{ textAlign: 'center', fontSize: '0.8rem', color: '#6b7280', padding: '12px 0 8px 0', background: '#0d0d18', borderTop: '1px solid #1a1a3a', width: '100%', marginTop: 'auto' }}>
+          📊 総アクセス数: <strong>{visitStats.views}</strong> 回 ｜ 訪問者数: <strong>{visitStats.uniques}</strong> 人
+        </div>
+      )}
     </div>
   );
 }
