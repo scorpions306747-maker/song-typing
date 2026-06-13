@@ -67,7 +67,7 @@ interface LineState {
 type GameState = 'idle' | 'playing' | 'paused' | 'finished';
 
 export default function App() {
-  const [tab, setTab] = useState<AppTab>('typing');
+  const [tab, setTab] = useState<AppTab>('mole');
   const [romajiMode, setRomajiMode] = useState(false);
   const [parsedLrc, setParsedLrc] = useState<ReturnType<typeof parseLrc>>([]);
   const [parsedRomajiLrc, setParsedRomajiLrc] = useState<ReturnType<typeof parseLrc> | null>(null);
