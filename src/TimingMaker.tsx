@@ -78,35 +78,87 @@ export default function TimingMaker() {
   }, [tickTime]);
 
   const loadLyrics = async () => {
-    const path = await window.electronAPI.openFileDialog([
-      { name: 'テキストファイル', extensions: ['txt', 'lrc'] },
-    ]);
-    if (!path) return;
-    const content = await window.electronAPI.readFile(path);
-    if (!content) return;
-    const parsed: TimedLine[] = content.split('\n')
-      .map(l => l.trim()).filter(l => l.length > 0)
-      .map(l => {
-        const m = l.match(/^\[[\d:\.]+\](.*)/);
-        return { time: null, text: m ? m[1].trim() : l, skip: false };
-      }).filter(l => l.text.length > 0);
-    setLines(parsed);
-    linesRef.current = parsed;
-    setLyricsFileName(path.split(/[\\/]/).pop() || '');
-    setState('idle');
-    setCurrentIdx(0);
+    if (window.electronAPI) {
+      const path = await window.electronAPI.openFileDialog([
+        { name: 'テキストファイル', extensions: ['txt', 'lrc'] },
+      ]);
+      if (!path) return;
+      const content = await window.electronAPI.readFile(path);
+      if (!content) return;
+      const parsed: TimedLine[] = content.split('\n')
+        .map(l => l.trim()).filter(l => l.length > 0)
+        .map(l => {
+          const m = l.match(/^\[[\d:\.]+\](.*)/);
+          return { time: null, text: m ? m[1].trim() : l, skip: false };
+        }).filter(l => l.text.length > 0);
+      setLines(parsed);
+      linesRef.current = parsed;
+      setLyricsFileName(path.split(/[\\/]/).pop() || '');
+      setState('idle');
+      setCurrentIdx(0);
+    } else {
+      // Webブラウザ (Vercel) 環境用
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.style.display = 'none';
+      input.accept = '.txt,.lrc';
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const content = reader.result as string;
+          if (content) {
+            const parsed: TimedLine[] = content.split('\n')
+              .map(l => l.trim()).filter(l => l.length > 0)
+              .map(l => {
+                const m = l.match(/^\[[\d:\.]+\](.*)/);
+                return { time: null, text: m ? m[1].trim() : l, skip: false };
+              }).filter(l => l.text.length > 0);
+            setLines(parsed);
+            linesRef.current = parsed;
+            setLyricsFileName(file.name);
+            setState('idle');
+            setCurrentIdx(0);
+          }
+        };
+        reader.readAsText(file);
+      };
+      document.body.appendChild(input);
+      input.click();
+      document.body.removeChild(input);
+    }
   };
 
   const loadAudio = async () => {
-    const path = await window.electronAPI.openFileDialog([
-      { name: '音楽ファイル', extensions: ['mp3', 'wav', 'ogg', 'flac', 'm4a'] },
-    ]);
-    if (!path) return;
-    const buf = await window.electronAPI.readFileBuffer(path);
-    if (!buf || !audioRef.current) return;
-    audioRef.current.src = URL.createObjectURL(new Blob([buf]));
-    setAudioPath(path);
-    setRawAudioPath(path);
+    if (window.electronAPI) {
+      const path = await window.electronAPI.openFileDialog([
+        { name: '音楽ファイル', extensions: ['mp3', 'wav', 'ogg', 'flac', 'm4a'] },
+      ]);
+      if (!path) return;
+      const buf = await window.electronAPI.readFileBuffer(path);
+      if (!buf || !audioRef.current) return;
+      audioRef.current.src = URL.createObjectURL(new Blob([buf]));
+      setAudioPath(path);
+      setRawAudioPath(path);
+    } else {
+      // Webブラウザ (Vercel) 環境用
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.style.display = 'none';
+      input.accept = 'audio/*';
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file || !audioRef.current) return;
+        const url = URL.createObjectURL(file);
+        audioRef.current.src = url;
+        setAudioPath(file.name);
+        setRawAudioPath(file.name);
+      };
+      document.body.appendChild(input);
+      input.click();
+      document.body.removeChild(input);
+    }
   };
 
   const handleAudioLoaded = () => {
@@ -286,7 +338,20 @@ export default function TimingMaker() {
       .map(l => `[${formatTime(l.time!)}]${l.text}`)
       .join('\n');
     const baseName = lyricsFileName.replace(/\.[^.]+$/, '') || 'output';
-    await window.electronAPI.saveFile({ defaultName: `${baseName}.lrc`, content });
+    if (window.electronAPI) {
+      await window.electronAPI.saveFile({ defaultName: `${baseName}.lrc`, content });
+    } else {
+      // Webブラウザ (Vercel) 環境用 - ファイルダウンロード
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${baseName}.lrc`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   };
 
   const saveLrc = () => saveLrcFromLines(lines);
@@ -450,14 +515,22 @@ export default function TimingMaker() {
         <div className="maker-actions">
           {(state === 'idle' || state === 'done') && !whisperRunning && (
             <>
-              <select value={whisperModel} onChange={e => setWhisperModel(e.target.value as WhisperModel)} className="model-select">
-                <option value="tiny">tiny（最速）</option>
-                <option value="base">base</option>
-                <option value="small">small（推奨）</option>
-                <option value="medium">medium</option>
-                <option value="large">large（最高精度）</option>
-              </select>
-              <button onClick={runWhisper} className="btn btn-whisper" disabled={totalActive === 0 || !rawAudioPath}>🤖 自動</button>
+              {window.electronAPI ? (
+                <>
+                  <select value={whisperModel} onChange={e => setWhisperModel(e.target.value as WhisperModel)} className="model-select">
+                    <option value="tiny">tiny（最速）</option>
+                    <option value="base">base</option>
+                    <option value="small">small（推奨）</option>
+                    <option value="medium">medium</option>
+                    <option value="large">large（最高精度）</option>
+                  </select>
+                  <button onClick={runWhisper} className="btn btn-whisper" disabled={totalActive === 0 || !rawAudioPath}>🤖 自動</button>
+                </>
+              ) : (
+                <span style={{ fontSize: '0.85rem', color: '#8080b0', marginRight: '10px' }}>
+                  ※自動タイミング設定（Whisper）はデスクトップ版でのみ利用可能です。
+                </span>
+              )}
               {state === 'done' && (
                 <button onClick={startRecording} className="btn btn-secondary">🔄 手動やり直し</button>
               )}
