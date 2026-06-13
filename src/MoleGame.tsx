@@ -333,6 +333,7 @@ export default function MoleGame({ currentUser, users }: MoleGameProps) {
       // Webブラウザ (Vercel) 環境用
       const input = document.createElement('input');
       input.type = 'file';
+      input.style.display = 'none';
       input.accept = 'image/*';
       input.onchange = (e: any) => {
         const file = e.target.files?.[0];
@@ -361,7 +362,9 @@ export default function MoleGame({ currentUser, users }: MoleGameProps) {
         };
         reader.readAsDataURL(file);
       };
+      document.body.appendChild(input);
       input.click();
+      document.body.removeChild(input);
     }
   };
 

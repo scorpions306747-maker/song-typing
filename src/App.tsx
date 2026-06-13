@@ -223,12 +223,14 @@ export default function App() {
   };
 
   const addToHistory = async (lrcP: string, romajiP: string | null, audioP: string) => {
+    if (!window.electronAPI) return; // Webブラウザ環境では履歴追加をスキップ
     const name = lrcP.split(/[\\/]/).pop()?.replace(/\.lrc$/i, '') ?? lrcP;
     await window.electronAPI.addHistory({ name, lrcPath: lrcP, romajiLrcPath: romajiP, audioPath: audioP });
     setHistory(await window.electronAPI.getHistory());
   };
 
   const removeFromHistory = async (id: string) => {
+    if (!window.electronAPI) return;
     await window.electronAPI.removeHistory(id);
     setHistory(await window.electronAPI.getHistory());
   };
@@ -284,23 +286,57 @@ export default function App() {
   };
 
   const loadLrc = async () => {
-    const path = await window.electronAPI.openFileDialog([{ name: 'LRCファイル', extensions: ['lrc'] }]);
-    if (!path) return;
-    const content = await window.electronAPI.readFile(path);
-    if (!content) return;
-    const parsed = parseLrc(content);
-    // 最初の数行を見てローマ字LRCかどうか自動検出
-    const sample = parsed.slice(0, 5).map(l => l.text).join(' ');
-    const detectedRomaji = isRomajiText(sample);
-    setRomajiMode(detectedRomaji);
-    const ls = buildLines(parsed, detectedRomaji, parsedRomajiLrc);
-    setLines(ls);
-    linesRef.current = ls;
-    setParsedLrc(parsed);
-    setLrcPath(path);
-    setCurrentIndex(-1);
-    setTyped('');
-    setGameState('idle');
+    if (window.electronAPI) {
+      const path = await window.electronAPI.openFileDialog([{ name: 'LRCファイル', extensions: ['lrc'] }]);
+      if (!path) return;
+      const content = await window.electronAPI.readFile(path);
+      if (!content) return;
+      const parsed = parseLrc(content);
+      // 最初の数行を見てローマ字LRCかどうか自動検出
+      const sample = parsed.slice(0, 5).map(l => l.text).join(' ');
+      const detectedRomaji = isRomajiText(sample);
+      setRomajiMode(detectedRomaji);
+      const ls = buildLines(parsed, detectedRomaji, parsedRomajiLrc);
+      setLines(ls);
+      linesRef.current = ls;
+      setParsedLrc(parsed);
+      setLrcPath(path);
+      setCurrentIndex(-1);
+      setTyped('');
+      setGameState('idle');
+    } else {
+      // Webブラウザ (Vercel) 環境用
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.style.display = 'none';
+      input.accept = '.lrc';
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const content = reader.result as string;
+          if (content) {
+            const parsed = parseLrc(content);
+            const sample = parsed.slice(0, 5).map(l => l.text).join(' ');
+            const detectedRomaji = isRomajiText(sample);
+            setRomajiMode(detectedRomaji);
+            const ls = buildLines(parsed, detectedRomaji, parsedRomajiLrc);
+            setLines(ls);
+            linesRef.current = ls;
+            setParsedLrc(parsed);
+            setLrcPath(file.name);
+            setCurrentIndex(-1);
+            setTyped('');
+            setGameState('idle');
+          }
+        };
+        reader.readAsText(file);
+      };
+      document.body.appendChild(input);
+      input.click();
+      document.body.removeChild(input);
+    }
   };
 
   const toggleRomajiMode = (next: boolean) => {
@@ -330,39 +366,90 @@ export default function App() {
     });
 
   const loadRomajiLrc = async () => {
-    const path = await window.electronAPI.openFileDialog([
-      { name: 'ローマ字LRCファイル', extensions: ['lrc', 'txt'] },
-    ]);
-    if (!path) return;
-    const content = await window.electronAPI.readFile(path);
-    if (!content) return;
-    const parsed = parseLrc(content);
-    setParsedRomajiLrc(parsed);
-    setRomajiLrcPath(path);
-    // 既にメインLRCが読み込まれていれば再構築
-    if (parsedLrc.length > 0) {
-      const ls = buildLines(parsedLrc, romajiMode, parsed);
-      setLines(ls);
-      linesRef.current = ls;
-      setGameState('idle');
-      setCurrentIndex(-1);
-      setTyped('');
+    if (window.electronAPI) {
+      const path = await window.electronAPI.openFileDialog([
+        { name: 'ローマ字LRCファイル', extensions: ['lrc', 'txt'] },
+      ]);
+      if (!path) return;
+      const content = await window.electronAPI.readFile(path);
+      if (!content) return;
+      const parsed = parseLrc(content);
+      setParsedRomajiLrc(parsed);
+      setRomajiLrcPath(path);
+      // 既にメインLRCが読み込まれていれば再構築
+      if (parsedLrc.length > 0) {
+        const ls = buildLines(parsedLrc, romajiMode, parsed);
+        setLines(ls);
+        linesRef.current = ls;
+        setGameState('idle');
+        setCurrentIndex(-1);
+        setTyped('');
+      }
+    } else {
+      // Webブラウザ (Vercel) 環境用
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.style.display = 'none';
+      input.accept = '.lrc,.txt';
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const content = reader.result as string;
+          if (content) {
+            const parsed = parseLrc(content);
+            setParsedRomajiLrc(parsed);
+            setRomajiLrcPath(file.name);
+            if (parsedLrc.length > 0) {
+              const ls = buildLines(parsedLrc, romajiMode, parsed);
+              setLines(ls);
+              linesRef.current = ls;
+              setGameState('idle');
+              setCurrentIndex(-1);
+              setTyped('');
+            }
+          }
+        };
+        reader.readAsText(file);
+      };
+      document.body.appendChild(input);
+      input.click();
+      document.body.removeChild(input);
     }
   };
 
   const loadAudio = async () => {
-    const path = await window.electronAPI.openFileDialog([
-      { name: '音楽ファイル', extensions: ['mp3', 'wav', 'ogg', 'flac', 'm4a'] },
-    ]);
-    if (!path) return;
-    const buf = await window.electronAPI.readFileBuffer(path);
-    if (!buf || !audioRef.current) return;
-    const blob = new Blob([buf]);
-    const url = URL.createObjectURL(blob);
-    audioRef.current.src = url;
-    setAudioPath(path);
-    // LRCも読み込み済みなら履歴に追加
-    if (lrcPath) await addToHistory(lrcPath, romajiLrcPath, path);
+    if (window.electronAPI) {
+      const path = await window.electronAPI.openFileDialog([
+        { name: '音楽ファイル', extensions: ['mp3', 'wav', 'ogg', 'flac', 'm4a'] },
+      ]);
+      if (!path) return;
+      const buf = await window.electronAPI.readFileBuffer(path);
+      if (!buf || !audioRef.current) return;
+      const blob = new Blob([buf]);
+      const url = URL.createObjectURL(blob);
+      audioRef.current.src = url;
+      setAudioPath(path);
+      // LRCも読み込み済みなら履歴に追加
+      if (lrcPath) await addToHistory(lrcPath, romajiLrcPath, path);
+    } else {
+      // Webブラウザ (Vercel) 環境用
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.style.display = 'none';
+      input.accept = 'audio/*';
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file || !audioRef.current) return;
+        const url = URL.createObjectURL(file);
+        audioRef.current.src = url;
+        setAudioPath(file.name);
+      };
+      document.body.appendChild(input);
+      input.click();
+      document.body.removeChild(input);
+    }
   };
 
   // Sync lyrics using requestAnimationFrame
