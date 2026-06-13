@@ -282,7 +282,14 @@ export default function MoleGame({ currentUser, users }: MoleGameProps) {
   const [customImageUrls, setCustomImageUrls] = useState<string[]>([]);
 
   const loadCustomImages = useCallback(async (paths: string[]) => {
-    if (!window.electronAPI) return;
+    if (!window.electronAPI) {
+      // Webブラウザ (Vercel) 環境用: pathsに入っているBase64形式のData URLをそのままURL配列にセット
+      const urls = paths.filter(p => typeof p === 'string' && p.startsWith('data:image/'));
+      setCustomImageUrls(urls);
+      return;
+    }
+    
+    // Electron環境用（ローカルファイルバッファの読み込み）
     try {
       const urls: string[] = [];
       const arrayToLoad = Array.isArray(paths) ? paths : [paths];
@@ -312,14 +319,49 @@ export default function MoleGame({ currentUser, users }: MoleGameProps) {
   }, [customImagePaths, loadCustomImages]);
 
   const handleAddCustomImage = async () => {
-    if (!window.electronAPI) return;
-    const path = await window.electronAPI.openFileDialog([
-      { name: '画像ファイル', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }
-    ]);
-    if (path && !customImagePaths.includes(path)) {
-      const updated = [...customImagePaths, path];
-      setCustomImagePaths(updated);
-      localStorage.setItem('customMoleImagePaths', JSON.stringify(updated));
+    if (window.electronAPI) {
+      // Electron環境用
+      const path = await window.electronAPI.openFileDialog([
+        { name: '画像ファイル', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }
+      ]);
+      if (path && !customImagePaths.includes(path)) {
+        const updated = [...customImagePaths, path];
+        setCustomImagePaths(updated);
+        localStorage.setItem('customMoleImagePaths', JSON.stringify(updated));
+      }
+    } else {
+      // Webブラウザ (Vercel) 環境用
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // 容量制限 (ブラウザのlocalStorage上限は約5MBのため、1.5MB以下に制限)
+        if (file.size > 1024 * 1024 * 1.5) {
+          alert('画像のファイルサイズが大きすぎます。1.5MB以下の画像を選択してください。');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          if (dataUrl && !customImagePaths.includes(dataUrl)) {
+            // 容量を圧迫しないよう、最大5枚までにトリム
+            const updated = [...customImagePaths, dataUrl].slice(-5);
+            setCustomImagePaths(updated);
+            try {
+              localStorage.setItem('customMoleImagePaths', JSON.stringify(updated));
+            } catch (err) {
+              console.error('Failed to save custom image to localStorage:', err);
+              alert('ローカルストレージの容量制限を超えました。不要な画像を削除するか、より小さいサイズの画像を選択してください。');
+            }
+          }
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
     }
   };
 
