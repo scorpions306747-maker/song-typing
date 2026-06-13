@@ -1,4 +1,12 @@
-import { sql } from '@vercel/postgres';
+import pg from 'pg';
+const { Pool } = pg;
+
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 export default async function handler(req, res) {
   // CORS headers
@@ -11,18 +19,22 @@ export default async function handler(req, res) {
   }
 
   try {
+    const client = await pool.connect();
+
     if (req.method === 'POST') {
       const { userName, stageId, gameMode, score, time, accuracy, endlessLevel } = req.body;
 
       if (!userName || !stageId || !gameMode) {
+        client.release();
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
-      await sql`
-        INSERT INTO mole_rankings (user_name, stage_id, game_mode, score, time, accuracy, endless_level)
-        VALUES (${userName}, ${stageId}, ${gameMode}, ${score}, ${time}, ${accuracy}, ${endlessLevel});
-      `;
+      await client.query(
+        'INSERT INTO mole_rankings (user_name, stage_id, game_mode, score, time, accuracy, endless_level) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [userName, stageId, gameMode, score, time, accuracy, endlessLevel]
+      );
 
+      client.release();
       return res.status(200).json({ success: true });
     } 
     
@@ -30,37 +42,26 @@ export default async function handler(req, res) {
       const { stageId, gameMode } = req.query;
 
       if (!stageId || !gameMode) {
+        client.release();
         return res.status(400).json({ error: 'Missing stageId or gameMode' });
       }
 
       let result;
       if (gameMode === 'timeAttack' || gameMode === 'atoz') {
-        // タイムアタック系はタイムが短い順
-        result = await sql`
-          SELECT user_name as "userName", score, time, accuracy, endless_level as "endlessLevel"
-          FROM mole_rankings
-          WHERE stage_id = ${stageId} AND game_mode = ${gameMode}
-          ORDER BY time ASC, accuracy DESC
-          LIMIT 10;
-        `;
+        result = await client.query(
+          'SELECT user_name as "userName", score, time, accuracy, endless_level as "endlessLevel" FROM mole_rankings WHERE stage_id = $1 AND game_mode = $2 ORDER BY time ASC, accuracy DESC LIMIT 10',
+          [stageId, gameMode]
+        );
       } else if (stageId === 'endless') {
-        // エンドレスは到達レベルが多い順
-        result = await sql`
-          SELECT user_name as "userName", score, time, accuracy, endless_level as "endlessLevel"
-          FROM mole_rankings
-          WHERE stage_id = ${stageId} AND game_mode = ${gameMode}
-          ORDER BY endless_level DESC, score DESC
-          LIMIT 10;
-        `;
+        result = await client.query(
+          'SELECT user_name as "userName", score, time, accuracy, endless_level as "endlessLevel" FROM mole_rankings WHERE stage_id = $1 AND game_mode = $2 ORDER BY endless_level DESC, score DESC LIMIT 10',
+          [stageId, gameMode]
+        );
       } else {
-        // 通常はスコアが高い順
-        result = await sql`
-          SELECT user_name as "userName", score, time, accuracy, endless_level as "endlessLevel"
-          FROM mole_rankings
-          WHERE stage_id = ${stageId} AND game_mode = ${gameMode}
-          ORDER BY score DESC, accuracy DESC
-          LIMIT 10;
-        `;
+        result = await client.query(
+          'SELECT user_name as "userName", score, time, accuracy, endless_level as "endlessLevel" FROM mole_rankings WHERE stage_id = $1 AND game_mode = $2 ORDER BY score DESC, accuracy DESC LIMIT 10',
+          [stageId, gameMode]
+        );
       }
 
       const formatted = result.rows.map(r => ({
@@ -73,9 +74,11 @@ export default async function handler(req, res) {
         isEndless: stageId === 'endless'
       }));
 
+      client.release();
       return res.status(200).json(formatted);
     }
 
+    client.release();
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
     console.error('API Error in mole-ranking:', error);

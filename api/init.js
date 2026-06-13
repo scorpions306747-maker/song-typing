@@ -1,9 +1,19 @@
-import { sql } from '@vercel/postgres';
+import pg from 'pg';
+const { Pool } = pg;
+
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 export default async function handler(req, res) {
   try {
+    const client = await pool.connect();
+    
     // もぐら練習用のランキングテーブル
-    await sql`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS mole_rankings (
         id SERIAL PRIMARY KEY,
         user_name VARCHAR(100) NOT NULL,
@@ -15,10 +25,10 @@ export default async function handler(req, res) {
         endless_level INT NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
-    `;
+    `);
 
     // 歌タイピング用のランキングテーブル
-    await sql`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS song_rankings (
         id SERIAL PRIMARY KEY,
         user_name VARCHAR(100) NOT NULL,
@@ -29,8 +39,9 @@ export default async function handler(req, res) {
         speed DOUBLE PRECISION NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
-    `;
+    `);
 
+    client.release();
     return res.status(200).json({ success: true, message: 'Tables initialized successfully' });
   } catch (error) {
     console.error('Failed to init tables:', error);
