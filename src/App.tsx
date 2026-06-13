@@ -110,9 +110,28 @@ export default function App() {
 
   // 起動時に履歴・ユーザーを読み込む
   useEffect(() => {
-    if (!window.electronAPI) return; // ブラウザ直接表示時（Electron外）
-    window.electronAPI.getHistory().then(setHistory);
-    window.electronAPI.getUsers().then(setUsers);
+    if (window.electronAPI) {
+      window.electronAPI.getHistory().then(setHistory);
+      window.electronAPI.getUsers().then(setUsers);
+    } else {
+      // Webブラウザ (Vercel) 環境用
+      try {
+        const rawUsers = localStorage.getItem('typingAppUsers');
+        const parsedUsers = rawUsers ? JSON.parse(rawUsers) : [];
+        setUsers(parsedUsers);
+
+        const savedUser = localStorage.getItem('typingAppCurrentUser');
+        if (savedUser) {
+          const parsedCurrentUser = JSON.parse(savedUser);
+          if (parsedUsers.some((u: any) => u.id === parsedCurrentUser.id)) {
+            setCurrentUser(parsedCurrentUser);
+            setShowUserSelect(false);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load users from localStorage:', err);
+      }
+    }
   }, []);
 
   // lrcPath変更時にランキング読み込み
@@ -147,24 +166,60 @@ export default function App() {
     setCurrentUser(user);
     setShowUserSelect(false);
     setUserError(null);
+    if (!window.electronAPI) {
+      localStorage.setItem('typingAppCurrentUser', JSON.stringify(user));
+    }
   };
 
   const handleAddUser = async () => {
     const name = newUserName.trim();
     if (!name) return;
-    const res = await window.electronAPI.addUser(name);
-    if (res.error) { setUserError(res.error); return; }
-    const updated = await window.electronAPI.getUsers();
-    setUsers(updated);
-    setNewUserName('');
-    setUserError(null);
-    if (res.user) handleSelectUser(res.user);
+
+    if (window.electronAPI) {
+      const res = await window.electronAPI.addUser(name);
+      if (res.error) { setUserError(res.error); return; }
+      const updated = await window.electronAPI.getUsers();
+      setUsers(updated);
+      setNewUserName('');
+      setUserError(null);
+      if (res.user) handleSelectUser(res.user);
+    } else {
+      // Webブラウザ (Vercel) 環境用
+      if (users.some(u => u.name === name)) {
+        setUserError('既に存在する名前です');
+        return;
+      }
+      const newUser = {
+        id: 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        name: name
+      };
+      const updatedUsers = [...users, newUser];
+      setUsers(updatedUsers);
+      localStorage.setItem('typingAppUsers', JSON.stringify(updatedUsers));
+      
+      setNewUserName('');
+      setUserError(null);
+      handleSelectUser(newUser);
+    }
   };
 
   const handleRemoveUser = async (id: string) => {
-    await window.electronAPI.removeUser(id);
-    setUsers(await window.electronAPI.getUsers());
-    if (currentUser?.id === id) { setCurrentUser(null); setShowUserSelect(true); }
+    if (window.electronAPI) {
+      await window.electronAPI.removeUser(id);
+      setUsers(await window.electronAPI.getUsers());
+      if (currentUser?.id === id) { setCurrentUser(null); setShowUserSelect(true); }
+    } else {
+      // Webブラウザ (Vercel) 環境用
+      const updatedUsers = users.filter(u => u.id !== id);
+      setUsers(updatedUsers);
+      localStorage.setItem('typingAppUsers', JSON.stringify(updatedUsers));
+      
+      if (currentUser?.id === id) {
+        setCurrentUser(null);
+        localStorage.removeItem('typingAppCurrentUser');
+        setShowUserSelect(true);
+      }
+    }
   };
 
   const addToHistory = async (lrcP: string, romajiP: string | null, audioP: string) => {
