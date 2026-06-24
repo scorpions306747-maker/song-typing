@@ -789,12 +789,15 @@ export default function MoleGame({ currentUser, users }: MoleGameProps) {
     const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
     if (idx >= letters.length) return;
     const key = letters[idx];
+    const urls = customImageUrlsRef.current;
+    const customUrl = urls.length > 0 ? urls[Math.floor(Math.random() * urls.length)] : undefined;
     const mole: Mole = {
       id: ++moleIdCounter,
       key,
       type: 'normal',
       bornAt: Date.now(),
       ttl: Infinity,
+      customImageUrl: customUrl,
     };
     setMoles([mole]);
     sfx.playPop();
