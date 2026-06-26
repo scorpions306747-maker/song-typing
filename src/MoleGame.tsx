@@ -1072,28 +1072,40 @@ export default function MoleGame({ currentUser, users }: MoleGameProps) {
           {/* 左カラム：設定とステージ選択 */}
           <div className="mole-menu-left">
             {/* ゲームモード（最上部に配置） */}
-            <div className="mole-menu-scale-section" style={{ marginTop: 0 }}>
-              <span className="scale-label">ゲームモード:</span>
-              <div className="mole-scale-control">
-                <button
-                  className={`scale-btn${gameMode === 'score' ? ' scale-active' : ''}`}
-                  onClick={() => handleGameModeChange('score')}
-                >
-                  スコアアタック (30秒制限)
-                </button>
-                <button
-                  className={`scale-btn${gameMode === 'timeAttack' ? ' scale-active' : ''}`}
-                  onClick={() => handleGameModeChange('timeAttack')}
-                >
-                  タイムアタック (30打目標)
-                </button>
-                <button
-                  className={`scale-btn${gameMode === 'atoz' ? ' scale-active' : ''}`}
-                  onClick={() => handleGameModeChange('atoz')}
-                >
-                  A～Z タイムアタック
-                </button>
-              </div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: 0 }}>
+              {([
+                { mode: 'score',      icon: '⏱', title: 'スコアアタック', sub: '30秒制限',   accent: '#f59e0b', glow: '#f59e0b40' },
+                { mode: 'timeAttack', icon: '🔢', title: 'タイムアタック', sub: '30打目標',   accent: '#34d399', glow: '#34d39940' },
+                { mode: 'atoz',       icon: '🔤', title: 'A～Z アタック',  sub: 'A→Z全制覇', accent: '#a78bfa', glow: '#a78bfa40' },
+              ] as { mode: 'score' | 'timeAttack' | 'atoz'; icon: string; title: string; sub: string; accent: string; glow: string }[]).map(({ mode, icon, title, sub, accent, glow }) => {
+                const active = gameMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => handleGameModeChange(mode)}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '12px 8px',
+                      borderRadius: '12px',
+                      border: active ? `2px solid ${accent}` : '1px solid #2a2a4a',
+                      background: active ? `linear-gradient(135deg, #1e1e38, #16163a)` : '#16162a',
+                      boxShadow: active ? `0 4px 20px ${glow}` : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      outline: 'none',
+                    }}
+                  >
+                    <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>{icon}</span>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: active ? '#fff' : '#a0a0c0', whiteSpace: 'nowrap' }}>{title}</span>
+                    <span style={{ fontSize: '0.7rem', color: active ? accent : '#505070', whiteSpace: 'nowrap' }}>{sub}</span>
+                    {active && <div style={{ width: '24px', height: '2px', borderRadius: '1px', background: accent, marginTop: '2px' }} />}
+                  </button>
+                );
+              })}
             </div>
 
             {/* ステージリスト */}
