@@ -61,6 +61,12 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+function fmtTime(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const cs = Math.floor((ms % 1000) / 10);
+  return `${s}.${String(cs).padStart(2, '0')}秒`;
+}
+
 // ---- ranking ----
 
 interface RankEntry {
@@ -69,6 +75,7 @@ interface RankEntry {
   accuracy: number;
   date: string;
   userName: string;
+  elapsed?: number; // ms — count modeのみ
 }
 
 interface UserEntry {
@@ -76,57 +83,68 @@ interface UserEntry {
   name: string;
 }
 
-function rankKey(timeLimit: number, groupKey: string) {
-  return `kanaRanking_${timeLimit}_${groupKey}`;
+type GameMode = 'time' | 'count';
+
+function rankKey(mode: GameMode, groupKey: string) {
+  return `kanaRanking_${mode}_${groupKey}`;
 }
 
-function loadRanking(timeLimit: number, groupKey: string): RankEntry[] {
+function loadRanking(mode: GameMode, groupKey: string): RankEntry[] {
   try {
-    return JSON.parse(localStorage.getItem(rankKey(timeLimit, groupKey)) ?? '[]');
+    return JSON.parse(localStorage.getItem(rankKey(mode, groupKey)) ?? '[]');
   } catch { return []; }
 }
 
-function addToRanking(timeLimit: number, groupKey: string, entry: RankEntry): { entries: RankEntry[]; rank: number } {
-  const existing = loadRanking(timeLimit, groupKey);
+function addToRanking(mode: GameMode, groupKey: string, entry: RankEntry): { entries: RankEntry[]; rank: number } {
+  const existing = loadRanking(mode, groupKey);
   const updated = [...existing, entry]
-    .sort((a, b) => b.correct - a.correct || b.accuracy - a.accuracy)
+    .sort(mode === 'time'
+      ? (a, b) => b.correct - a.correct || b.accuracy - a.accuracy
+      : (a, b) => (a.elapsed ?? 0) - (b.elapsed ?? 0) || b.accuracy - a.accuracy
+    )
     .slice(0, 10);
-  localStorage.setItem(rankKey(timeLimit, groupKey), JSON.stringify(updated));
+  localStorage.setItem(rankKey(mode, groupKey), JSON.stringify(updated));
   const rank = updated.findIndex(e => e.date === entry.date) + 1;
   return { entries: updated, rank };
 }
 
 // ---- component ----
 
-const TIME_OPTIONS = [30, 60, 90] as const;
-type TimeLimit = typeof TIME_OPTIONS[number];
+const COUNT_TARGET = 30;
+const TIME_LIMIT = 30;
+
 type Phase = 'select' | 'playing' | 'result';
 
 export default function KanaPractice({ currentUser }: { currentUser: UserEntry | null }) {
   const [phase, setPhase] = useState<Phase>('select');
+  const [gameMode, setGameMode] = useState<GameMode>('time');
   const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set([0, 1, 2, 3]));
-  const [timeLimit, setTimeLimit] = useState<TimeLimit>(60);
 
   // playing state
   const [queue, setQueue] = useState<string[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
   const [typed, setTyped] = useState('');
   const [target, setTarget] = useState('');
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
+  const [elapsed, setElapsed] = useState(0);
   const [score, setScore] = useState({ correct: 0, miss: 0 });
   const [flash, setFlash] = useState<'correct' | 'miss' | null>(null);
 
   // result state
   const [ranking, setRanking] = useState<RankEntry[]>([]);
   const [myRank, setMyRank] = useState<number | null>(null);
+  const [resultEntry, setResultEntry] = useState<RankEntry | null>(null);
 
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const elapsedRef = useRef(0);
   const scoreRef = useRef({ correct: 0, miss: 0 });
   const queueRef = useRef<string[]>([]);
   const queueIndexRef = useRef(0);
   const typedRef = useRef('');
   const targetRef = useRef('');
+  const gameModeRef = useRef<GameMode>('time');
 
   const groupKey = [...selectedGroups].sort().join('-');
   const totalKana = [...selectedGroups].reduce((acc, i) => acc + KANA_GROUPS[i].kana.length, 0);
@@ -137,18 +155,27 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
     flashTimer.current = setTimeout(() => setFlash(null), 220);
   };
 
-  const finishGame = useCallback(() => {
+  const finishGame = useCallback((forceElapsed?: number) => {
     if (timerRef.current) clearInterval(timerRef.current);
     const s = scoreRef.current;
     const accuracy = s.correct + s.miss === 0
       ? 100
       : Math.round((s.correct / (s.correct + s.miss)) * 100);
-    const entry: RankEntry = { correct: s.correct, miss: s.miss, accuracy, date: new Date().toISOString(), userName: currentUser?.name ?? '??' };
-    const { entries, rank } = addToRanking(timeLimit, groupKey, entry);
+    const finalElapsed = forceElapsed ?? elapsedRef.current;
+    const entry: RankEntry = {
+      correct: s.correct,
+      miss: s.miss,
+      accuracy,
+      date: new Date().toISOString(),
+      userName: currentUser?.name ?? '??',
+      ...(gameModeRef.current === 'count' ? { elapsed: finalElapsed } : {}),
+    };
+    const { entries, rank } = addToRanking(gameModeRef.current, groupKey, entry);
+    setResultEntry(entry);
     setRanking(entries);
     setMyRank(rank);
     setPhase('result');
-  }, [timeLimit, groupKey]);
+  }, [groupKey, currentUser]);
 
   const startGame = useCallback(() => {
     const kanaList = KANA_GROUPS.filter((_, i) => selectedGroups.has(i)).flatMap(g => g.kana);
@@ -160,7 +187,8 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
     setQueueIndex(0);
     setTyped('');
     setTarget(initialTarget);
-    setTimeLeft(timeLimit);
+    setTimeLeft(TIME_LIMIT);
+    setElapsed(0);
     setScore({ correct: 0, miss: 0 });
     setFlash(null);
 
@@ -169,22 +197,30 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
     typedRef.current = '';
     targetRef.current = initialTarget;
     scoreRef.current = { correct: 0, miss: 0 };
+    gameModeRef.current = gameMode;
+    startTimeRef.current = Date.now();
+    elapsedRef.current = 0;
 
     setPhase('playing');
-  }, [selectedGroups, timeLimit]);
+  }, [selectedGroups, gameMode]);
 
-  // countdown timer
+  // timer (time mode: countdown / count mode: stopwatch)
   useEffect(() => {
     if (phase !== 'playing') return;
-    timerRef.current = setInterval(() => {
-      setTimeLeft(t => {
-        if (t <= 1) {
-          finishGame();
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
+    if (gameModeRef.current === 'time') {
+      timerRef.current = setInterval(() => {
+        setTimeLeft(t => {
+          if (t <= 1) { finishGame(); return 0; }
+          return t - 1;
+        });
+      }, 1000);
+    } else {
+      timerRef.current = setInterval(() => {
+        const ms = Date.now() - startTimeRef.current;
+        elapsedRef.current = ms;
+        setElapsed(ms);
+      }, 50);
+    }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [phase, finishGame]);
 
@@ -208,18 +244,25 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
         return;
       }
 
-      const newTarget = matches[0];
-      targetRef.current = newTarget;
+      targetRef.current = matches[0];
       typedRef.current = newTyped;
       setTyped(newTyped);
-      setTarget(newTarget);
+      setTarget(matches[0]);
 
       if (matches.some(r => r === newTyped)) {
-        scoreRef.current = { ...scoreRef.current, correct: scoreRef.current.correct + 1 };
+        const newCorrect = scoreRef.current.correct + 1;
+        scoreRef.current = { ...scoreRef.current, correct: newCorrect };
         setScore({ ...scoreRef.current });
         triggerFlash('correct');
 
-        // advance to next kana (cycle queue if exhausted)
+        // count mode: finish at COUNT_TARGET
+        if (gameModeRef.current === 'count' && newCorrect >= COUNT_TARGET) {
+          const ms = Date.now() - startTimeRef.current;
+          elapsedRef.current = ms;
+          setTimeout(() => finishGame(ms), 80);
+          return;
+        }
+
         let nextIdx = queueIndexRef.current + 1;
         let nextQueue = queueRef.current;
         if (nextIdx >= nextQueue.length) {
@@ -229,8 +272,7 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
           setQueue([...nextQueue]);
         }
         queueIndexRef.current = nextIdx;
-        const nextKana = nextQueue[nextIdx];
-        const nextTarget = getAccepted(nextKana)[0];
+        const nextTarget = getAccepted(nextQueue[nextIdx])[0];
         targetRef.current = nextTarget;
         typedRef.current = '';
         setQueueIndex(nextIdx);
@@ -252,34 +294,40 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
 
   // ---- select screen ----
   if (phase === 'select') {
-    const savedRanking = loadRanking(timeLimit, groupKey);
+    const savedRanking = loadRanking(gameMode, groupKey);
     return (
       <main className="main">
         <div style={{ maxWidth: '760px', margin: '0 auto', padding: '20px', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <h2 style={{ fontSize: '1.6rem', color: '#c4b5fd', textAlign: 'center', margin: 0 }}>🈶 かなタイムアタック</h2>
 
           <div style={{ background: '#16162a', border: '1px solid #2a2a4a', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {/* time limit */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ color: '#a0a0c0', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>制限時間:</span>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {TIME_OPTIONS.map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setTimeLimit(t)}
-                    style={{
-                      padding: '6px 18px',
-                      borderRadius: '8px',
-                      border: timeLimit === t ? '2px solid #a78bfa' : '1px solid #2a2a4a',
-                      background: timeLimit === t ? '#3b1f6e' : '#1c1c3a',
-                      color: timeLimit === t ? '#e9d5ff' : '#a0a0c0',
-                      cursor: 'pointer',
-                      fontWeight: timeLimit === t ? 'bold' : 'normal',
-                      fontSize: '0.9rem',
-                    }}
-                  >{t}秒</button>
-                ))}
-              </div>
+
+            {/* mode select */}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              {(['time', 'count'] as GameMode[]).map(m => (
+                <button
+                  key={m}
+                  onClick={() => setGameMode(m)}
+                  style={{
+                    flex: 1,
+                    padding: '14px',
+                    borderRadius: '12px',
+                    border: gameMode === m ? '2px solid #a78bfa' : '1px solid #2a2a4a',
+                    background: gameMode === m ? '#3b1f6e' : '#1c1c3a',
+                    color: gameMode === m ? '#e9d5ff' : '#a0a0c0',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div style={{ fontSize: '1.4rem', marginBottom: '4px' }}>{m === 'time' ? '⏱' : '🔢'}</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>
+                    {m === 'time' ? '30秒アタック' : '30打アタック'}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: gameMode === m ? '#c4b5fd' : '#505070', marginTop: '4px' }}>
+                    {m === 'time' ? '30秒で何文字打てるか' : '30文字を最速で打つ'}
+                  </div>
+                </button>
+              ))}
             </div>
 
             {/* group select */}
@@ -323,15 +371,16 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
               className="btn btn-primary btn-large"
               style={{ width: '100%' }}
             >
-              ▶ スタート（{timeLimit}秒 / {totalKana}文字プール）
+              ▶ スタート（{gameMode === 'time' ? `30秒 / ${totalKana}文字プール` : `30打 / ${totalKana}文字プール`}）
             </button>
           </div>
 
-          {/* ranking preview */}
           {savedRanking.length > 0 && (
             <div style={{ background: '#16162a', border: '1px solid #2a2a4a', borderRadius: '16px', padding: '20px' }}>
-              <h3 style={{ color: '#c4b5fd', margin: '0 0 12px 0', fontSize: '1rem' }}>🏆 ランキング（{timeLimit}秒）</h3>
-              <RankingTable entries={savedRanking} myRank={null} />
+              <h3 style={{ color: '#c4b5fd', margin: '0 0 12px 0', fontSize: '1rem' }}>
+                🏆 ランキング（{gameMode === 'time' ? '30秒アタック' : '30打アタック'}）
+              </h3>
+              <RankingTable entries={savedRanking} myRank={null} mode={gameMode} />
             </div>
           )}
         </div>
@@ -341,18 +390,28 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
 
   // ---- result screen ----
   if (phase === 'result') {
-    const accuracy = score.correct + score.miss === 0
-      ? 100
-      : Math.round((score.correct / (score.correct + score.miss)) * 100);
+    const accuracy = resultEntry
+      ? resultEntry.accuracy
+      : score.correct + score.miss === 0 ? 100 : Math.round((score.correct / (score.correct + score.miss)) * 100);
     return (
       <main className="main">
         <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div className="result-screen" style={{ margin: 0 }}>
-            <h2>タイム終了！</h2>
+            <h2>{gameMode === 'time' ? 'タイム終了！' : '30打完了！'}</h2>
             <div className="stats">
-              <div className="stat"><span className="stat-label">正打数</span><span className="stat-value">{score.correct}</span></div>
-              <div className="stat"><span className="stat-label">ミス</span><span className="stat-value miss">{score.miss}</span></div>
-              <div className="stat"><span className="stat-label">正確率</span><span className="stat-value">{accuracy}%</span></div>
+              {gameMode === 'time' ? (
+                <>
+                  <div className="stat"><span className="stat-label">正打数</span><span className="stat-value">{resultEntry?.correct ?? score.correct}</span></div>
+                  <div className="stat"><span className="stat-label">ミス</span><span className="stat-value miss">{resultEntry?.miss ?? score.miss}</span></div>
+                  <div className="stat"><span className="stat-label">正確率</span><span className="stat-value">{accuracy}%</span></div>
+                </>
+              ) : (
+                <>
+                  <div className="stat"><span className="stat-label">タイム</span><span className="stat-value">{fmtTime(resultEntry?.elapsed ?? elapsed)}</span></div>
+                  <div className="stat"><span className="stat-label">ミス</span><span className="stat-value miss">{resultEntry?.miss ?? score.miss}</span></div>
+                  <div className="stat"><span className="stat-label">正確率</span><span className="stat-value">{accuracy}%</span></div>
+                </>
+              )}
             </div>
             {myRank !== null && (
               <div className={`rank-badge${myRank === 1 ? ' rank-1' : myRank <= 3 ? ' rank-top3' : ''}`}>
@@ -367,8 +426,10 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
 
           {ranking.length > 0 && (
             <div style={{ background: '#16162a', border: '1px solid #2a2a4a', borderRadius: '16px', padding: '20px' }}>
-              <h3 style={{ color: '#c4b5fd', margin: '0 0 12px 0', fontSize: '1rem' }}>🏆 ランキング（{timeLimit}秒）</h3>
-              <RankingTable entries={ranking} myRank={myRank} />
+              <h3 style={{ color: '#c4b5fd', margin: '0 0 12px 0', fontSize: '1rem' }}>
+                🏆 ランキング（{gameMode === 'time' ? '30秒アタック' : '30打アタック'}）
+              </h3>
+              <RankingTable entries={ranking} myRank={myRank} mode={gameMode} />
             </div>
           )}
         </div>
@@ -384,31 +445,52 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
       ? '0 0 40px #f87171, 0 0 80px #f8717160'
       : 'none';
 
-  const timerPct = (timeLeft / timeLimit) * 100;
-  const timerColor = timeLeft <= 10 ? '#f87171' : timeLeft <= 20 ? '#fbbf24' : '#a78bfa';
-
   return (
-    <main className="main" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0' }}>
-      {/* timer bar */}
+    <main className="main" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      {/* status bar */}
       <div style={{ width: '100%', maxWidth: '500px', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
           <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>正打: {score.correct} / ミス: {score.miss}</span>
-          <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: timerColor, fontVariantNumeric: 'tabular-nums' }}>
-            {timeLeft}s
-          </span>
+          {gameMode === 'time' ? (
+            <span style={{
+              fontSize: '1.4rem', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums',
+              color: timeLeft <= 10 ? '#f87171' : timeLeft <= 20 ? '#fbbf24' : '#a78bfa',
+            }}>{timeLeft}s</span>
+          ) : (
+            <span style={{ fontSize: '1.4rem', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', color: '#34d399' }}>
+              {fmtTime(elapsed)}
+            </span>
+          )}
         </div>
-        <div style={{ height: '8px', background: '#1c1c3a', borderRadius: '4px', overflow: 'hidden' }}>
-          <div style={{
-            height: '100%',
-            width: `${timerPct}%`,
-            background: timerColor,
-            borderRadius: '4px',
-            transition: 'width 0.9s linear, background 0.3s',
-          }} />
-        </div>
+        {gameMode === 'time' ? (
+          <div style={{ height: '8px', background: '#1c1c3a', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${(timeLeft / TIME_LIMIT) * 100}%`,
+              background: timeLeft <= 10 ? '#f87171' : timeLeft <= 20 ? '#fbbf24' : '#a78bfa',
+              borderRadius: '4px',
+              transition: 'width 0.9s linear, background 0.3s',
+            }} />
+          </div>
+        ) : (
+          <div style={{ height: '8px', background: '#1c1c3a', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${(score.correct / COUNT_TARGET) * 100}%`,
+              background: '#34d399',
+              borderRadius: '4px',
+              transition: 'width 0.1s',
+            }} />
+          </div>
+        )}
+        {gameMode === 'count' && (
+          <div style={{ textAlign: 'right', fontSize: '0.78rem', color: '#6b7280', marginTop: '4px' }}>
+            {score.correct} / {COUNT_TARGET}
+          </div>
+        )}
       </div>
 
-      {/* kana display */}
+      {/* kana */}
       <div style={{
         fontSize: 'clamp(5rem, 20vw, 9rem)',
         lineHeight: 1,
@@ -422,7 +504,6 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
         {queue[queueIndex] ?? ''}
       </div>
 
-      {/* romaji input display */}
       <div className="romaji-display" style={{ fontSize: '2.2rem', letterSpacing: '0.12em' }}>
         <span className="typed">{target.slice(0, typed.length)}</span>
         <span className="cursor">{target[typed.length] ?? ''}</span>
@@ -438,7 +519,7 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
 
 // ---- sub-component ----
 
-function RankingTable({ entries, myRank }: { entries: RankEntry[]; myRank: number | null }) {
+function RankingTable({ entries, myRank, mode }: { entries: RankEntry[]; myRank: number | null; mode: GameMode }) {
   const medals = ['🏆', '🥈', '🥉'];
   return (
     <table className="ranking-table" style={{ width: '100%' }}>
@@ -446,7 +527,7 @@ function RankingTable({ entries, myRank }: { entries: RankEntry[]; myRank: numbe
         <tr>
           <th>順位</th>
           <th>名前</th>
-          <th>正打数</th>
+          {mode === 'time' ? <th>正打数</th> : <th>タイム</th>}
           <th>ミス</th>
           <th>正確率</th>
           <th>日付</th>
@@ -457,7 +538,10 @@ function RankingTable({ entries, myRank }: { entries: RankEntry[]; myRank: numbe
           <tr key={i} className={i + 1 === myRank ? 'ranking-my-row' : ''}>
             <td>{medals[i] ?? `${i + 1}`}</td>
             <td>{e.userName}</td>
-            <td><strong>{e.correct}</strong></td>
+            {mode === 'time'
+              ? <td><strong>{e.correct}</strong></td>
+              : <td><strong>{fmtTime(e.elapsed ?? 0)}</strong></td>
+            }
             <td>{e.miss}</td>
             <td>{e.accuracy}%</td>
             <td>{new Date(e.date).toLocaleDateString('ja-JP')}</td>
