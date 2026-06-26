@@ -5,6 +5,7 @@ import type { KanaChunk } from './utils/romajiConverter';
 import { textToChunks, chunksToRomaji, isRomajiText } from './utils/romajiConverter';
 import TimingMaker from './TimingMaker';
 import MoleGame from './MoleGame';
+import KanaPractice from './KanaPractice';
 import './App.css';
 
 declare global {
@@ -56,7 +57,7 @@ interface SongHistory {
   usedAt: string;
 }
 
-type AppTab = 'typing' | 'mole';
+type AppTab = 'typing' | 'mole' | 'kana';
 
 interface LineState {
   lrcLine: LrcLine;
@@ -682,10 +683,15 @@ export default function App() {
             className={`tab-btn${tab === 'typing' ? ' tab-active' : ''}`}
             onClick={() => setTab('typing')}
           >🎵 歌で訓練</button>
+          <button
+            className={`tab-btn${tab === 'kana' ? ' tab-active' : ''}`}
+            onClick={() => setTab('kana')}
+          >🈶 かな練習</button>
         </div>
       </header>
 
       {tab === 'mole' && <MoleGame currentUser={currentUser} users={users} />}
+      {tab === 'kana' && <KanaPractice currentUser={currentUser} />}
 
       {tab === 'typing' && <main className="main">
         {gameState === 'idle' && (
