@@ -1143,40 +1143,6 @@ export default function MoleGame({ currentUser, users }: MoleGameProps) {
               )}
             </div>
 
-            {/* 各種オプション設定エリア */}
-            <div className="mole-menu-options">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="scale-label">もぐらの画像:</span>
-                  <button className="btn btn-secondary btn-small" onClick={handleAddCustomImage}>
-                    画像を追加...
-                  </button>
-                </div>
-                {customImagePaths.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto', background: '#0f0f1a', borderRadius: '8px', padding: '8px', border: '1px solid #2a2a4a' }}>
-                    {customImagePaths.map((path, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-                        <span className="custom-image-path-label" title={path} style={{ fontSize: '0.82rem', color: '#a78bfa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>
-                          {path.split(/[\\/]/).pop()}
-                        </span>
-                        <button className="btn btn-small" style={{ background: '#4a1a1a', color: '#f87171', border: '1px solid #5a2a2a', padding: '2px 6px', fontSize: '0.75rem' }} onClick={() => handleRemoveCustomImage(idx)}>
-                          削除
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: '0.82rem', color: '#6060a0', textAlign: 'center', padding: '6px 0' }}>
-                    デフォルト (SVG)
-                  </div>
-                )}
-                {customImagePaths.length > 0 && (
-                  <button className="btn btn-small" style={{ alignSelf: 'flex-end', background: '#3a2a4a', color: '#c4b5fd', border: '1px solid #4a3a7a', padding: '4px 10px', fontSize: '0.8rem' }} onClick={handleClearCustomImages}>
-                    すべてクリア
-                  </button>
-                )}
-              </div>
-            </div>
           </div>
 
           {/* 右カラム：ランキング */}
@@ -1245,6 +1211,41 @@ export default function MoleGame({ currentUser, users }: MoleGameProps) {
                   このステージのランキングデータがまだありません。
                 </p>
               )}
+            </div>
+
+            {/* もぐらの画像 */}
+            <div className="mole-menu-options">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="scale-label">もぐらの画像:</span>
+                  <button className="btn btn-secondary btn-small" onClick={handleAddCustomImage}>
+                    画像を追加...
+                  </button>
+                </div>
+                {customImagePaths.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto', background: '#0f0f1a', borderRadius: '8px', padding: '8px', border: '1px solid #2a2a4a' }}>
+                    {customImagePaths.map((path, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                        <span className="custom-image-path-label" title={path} style={{ fontSize: '0.82rem', color: '#a78bfa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>
+                          {path.split(/[\\/]/).pop()}
+                        </span>
+                        <button className="btn btn-small" style={{ background: '#4a1a1a', color: '#f87171', border: '1px solid #5a2a2a', padding: '2px 6px', fontSize: '0.75rem' }} onClick={() => handleRemoveCustomImage(idx)}>
+                          削除
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.82rem', color: '#6060a0', textAlign: 'center', padding: '6px 0' }}>
+                    デフォルト (SVG)
+                  </div>
+                )}
+                {customImagePaths.length > 0 && (
+                  <button className="btn btn-small" style={{ alignSelf: 'flex-end', background: '#3a2a4a', color: '#c4b5fd', border: '1px solid #4a3a7a', padding: '4px 10px', fontSize: '0.8rem' }} onClick={handleClearCustomImages}>
+                    すべてクリア
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
