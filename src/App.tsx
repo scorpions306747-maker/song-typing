@@ -667,7 +667,7 @@ export default function App() {
       )}
 
       <header className="header">
-        <h1>⌨ 座タッチ〜速打ち職人への道</h1>
+        <h1>⌨ ZaTouch — Master the Art of Speed Typing</h1>
         <div className="tab-bar">
           {currentUser && (
             <button className="user-badge" onClick={() => setShowUserSelect(true)} title="プレイヤー変更">
