@@ -390,6 +390,9 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
               <RankingTable entries={savedRanking} myRank={null} mode={gameMode} />
             </div>
           )}
+          <p style={{ textAlign: 'center', color: '#4b5563', fontSize: '0.82rem' }}>
+            ※ ランキングは全行選択時のみ記録されます
+          </p>
         </div>
       </main>
     );
