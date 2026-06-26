@@ -6,6 +6,7 @@ import { textToChunks, chunksToRomaji, isRomajiText } from './utils/romajiConver
 import TimingMaker from './TimingMaker';
 import MoleGame from './MoleGame';
 import KanaPractice from './KanaPractice';
+import MainMenu from './MainMenu';
 import './App.css';
 
 declare global {
@@ -69,6 +70,7 @@ type GameState = 'idle' | 'playing' | 'paused' | 'finished';
 
 export default function App() {
   const [tab, setTab] = useState<AppTab>('mole');
+  const [showMenu, setShowMenu] = useState(true);
   const [romajiMode, setRomajiMode] = useState(false);
   const [parsedLrc, setParsedLrc] = useState<ReturnType<typeof parseLrc>>([]);
   const [parsedRomajiLrc, setParsedRomajiLrc] = useState<ReturnType<typeof parseLrc> | null>(null);
@@ -668,32 +670,47 @@ export default function App() {
       )}
 
       <header className="header">
-        <h1>⌨ ZaTouch — Master the Art of Speed Typing</h1>
+        <h1
+          style={{ cursor: showMenu ? 'default' : 'pointer' }}
+          onClick={() => { if (!showMenu) setShowMenu(true); }}
+          title={showMenu ? '' : 'メインメニューに戻る'}
+        >⌨ ZaTouch — Master the Art of Speed Typing</h1>
         <div className="tab-bar">
           {currentUser && (
             <button className="user-badge" onClick={() => setShowUserSelect(true)} title="プレイヤー変更">
               👤 {currentUser.name}
             </button>
           )}
-          <button
-            className={`tab-btn${tab === 'mole' ? ' tab-active' : ''}`}
-            onClick={() => setTab('mole')}
-          >🔨 もぐらで訓練</button>
-          <button
-            className={`tab-btn${tab === 'typing' ? ' tab-active' : ''}`}
-            onClick={() => setTab('typing')}
-          >🎵 歌で訓練</button>
-          <button
-            className={`tab-btn${tab === 'kana' ? ' tab-active' : ''}`}
-            onClick={() => setTab('kana')}
-          >🈶 かな練習</button>
+          {!showMenu && (
+            <>
+              <button
+                className={`tab-btn${tab === 'mole' ? ' tab-active' : ''}`}
+                onClick={() => setTab('mole')}
+              >🔨 もぐらで訓練</button>
+              <button
+                className={`tab-btn${tab === 'typing' ? ' tab-active' : ''}`}
+                onClick={() => setTab('typing')}
+              >🎵 歌で訓練</button>
+              <button
+                className={`tab-btn${tab === 'kana' ? ' tab-active' : ''}`}
+                onClick={() => setTab('kana')}
+              >🈶 かな練習</button>
+            </>
+          )}
+          {!showMenu && (
+            <button className="tab-btn" onClick={() => setShowMenu(true)}>🏠 メニュー</button>
+          )}
         </div>
       </header>
 
-      {tab === 'mole' && <MoleGame currentUser={currentUser} users={users} />}
-      {tab === 'kana' && <KanaPractice currentUser={currentUser} />}
+      {showMenu && (
+        <MainMenu onSelect={(t) => { setTab(t); setShowMenu(false); }} />
+      )}
 
-      {tab === 'typing' && <main className="main">
+      {!showMenu && tab === 'mole' && <MoleGame currentUser={currentUser} users={users} />}
+      {!showMenu && tab === 'kana' && <KanaPractice currentUser={currentUser} />}
+
+      {!showMenu && tab === 'typing' && <main className="main">
         {gameState === 'idle' && (
           <div className="typing-menu-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', maxWidth: '1100px', margin: '0 auto', padding: '10px' }}>
             <h2 style={{ fontSize: '1.6rem', color: '#c4b5fd', textAlign: 'center', marginBottom: '4px' }}>🎵 歌でタイピング訓練</h2>
@@ -897,7 +914,7 @@ export default function App() {
         )}
       </main>}
 
-      {tab === 'typing' && <footer className="footer">
+      {!showMenu && tab === 'typing' && <footer className="footer">
         <div className="score-bar">
           <span>正確率: <strong>{accuracy}%</strong></span>
           <span>正打: <strong>{score.correct}</strong></span>
