@@ -143,7 +143,6 @@ export default function MainMenu({ onSelect }: { onSelect: (tab: AppTab) => void
                   fontWeight: 900,
                   color: isHovered ? mode.accent : '#2a2a5a',
                   fontVariantNumeric: 'tabular-nums',
-                  transition: 'color 0.15s',
                   border: `2px solid ${isHovered ? mode.accent : '#2a2a5a'}`,
                   borderRadius: '8px',
                   width: '36px',
