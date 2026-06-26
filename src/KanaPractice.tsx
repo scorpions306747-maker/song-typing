@@ -155,6 +155,8 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
     flashTimer.current = setTimeout(() => setFlash(null), 220);
   };
 
+  const isAllGroups = selectedGroups.size === KANA_GROUPS.length;
+
   const finishGame = useCallback((forceElapsed?: number) => {
     if (timerRef.current) clearInterval(timerRef.current);
     const s = scoreRef.current;
@@ -170,12 +172,17 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
       userName: currentUser?.name ?? '??',
       ...(gameModeRef.current === 'count' ? { elapsed: finalElapsed } : {}),
     };
-    const { entries, rank } = addToRanking(gameModeRef.current, groupKey, entry);
     setResultEntry(entry);
-    setRanking(entries);
-    setMyRank(rank);
+    if (isAllGroups) {
+      const { entries, rank } = addToRanking(gameModeRef.current, groupKey, entry);
+      setRanking(entries);
+      setMyRank(rank);
+    } else {
+      setRanking([]);
+      setMyRank(null);
+    }
     setPhase('result');
-  }, [groupKey, currentUser]);
+  }, [groupKey, currentUser, isAllGroups]);
 
   const startGame = useCallback(() => {
     const kanaList = KANA_GROUPS.filter((_, i) => selectedGroups.has(i)).flatMap(g => g.kana);
@@ -294,7 +301,7 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
 
   // ---- select screen ----
   if (phase === 'select') {
-    const savedRanking = loadRanking(gameMode, groupKey);
+    const savedRanking = isAllGroups ? loadRanking(gameMode, groupKey) : [];
     return (
       <main className="main">
         <div style={{ maxWidth: '760px', margin: '0 auto', padding: '20px', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -431,6 +438,11 @@ export default function KanaPractice({ currentUser }: { currentUser: UserEntry |
               </h3>
               <RankingTable entries={ranking} myRank={myRank} mode={gameMode} />
             </div>
+          )}
+          {!isAllGroups && (
+            <p style={{ textAlign: 'center', color: '#4b5563', fontSize: '0.82rem' }}>
+              ※ ランキングは全行選択時のみ記録されます
+            </p>
           )}
         </div>
       </main>
