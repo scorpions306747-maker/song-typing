@@ -55,43 +55,43 @@ const STAGES: StageDef[] = [
   {
     id: 'index', name: '👆 人差し指ステージ', desc: '左右の人差し指だけで叩こう（F・Jから動かす）',
     keys: [...FINGER_KEYS['L-index'], ...FINGER_KEYS['R-index']],
-    clearScore: 300, duration: 60, spawnDelay: [900, 1500], moleTtl: 2800,
+    clearScore: 300, duration: 30, spawnDelay: [900, 1500], moleTtl: 2800,
     useGolden: false, useBomb: false, useHelmet: false, strictMiss: false, endless: false, maxMoles: 1,
   },
   {
     id: 'middle', name: '🖕 中指ステージ', desc: '左右の中指だけで叩こう（D・Kから動かす）',
     keys: [...FINGER_KEYS['L-middle'], ...FINGER_KEYS['R-middle']],
-    clearScore: 300, duration: 60, spawnDelay: [900, 1500], moleTtl: 2800,
+    clearScore: 300, duration: 30, spawnDelay: [900, 1500], moleTtl: 2800,
     useGolden: false, useBomb: false, useHelmet: false, strictMiss: false, endless: false, maxMoles: 1,
   },
   {
     id: 'ring', name: '💍 薬指ステージ', desc: '左右の薬指だけで叩こう（S・Lから動かす）',
     keys: [...FINGER_KEYS['L-ring'], ...FINGER_KEYS['R-ring']],
-    clearScore: 250, duration: 60, spawnDelay: [1000, 1600], moleTtl: 3000,
+    clearScore: 250, duration: 30, spawnDelay: [1000, 1600], moleTtl: 3000,
     useGolden: false, useBomb: false, useHelmet: false, strictMiss: false, endless: false, maxMoles: 1,
   },
   {
     id: 'pinky', name: '🤙 小指ステージ', desc: '左右の小指だけで叩こう（A・;から動かす）',
     keys: [...FINGER_KEYS['L-pinky'], ...FINGER_KEYS['R-pinky']],
-    clearScore: 250, duration: 60, spawnDelay: [1000, 1700], moleTtl: 3200,
+    clearScore: 250, duration: 30, spawnDelay: [1000, 1700], moleTtl: 3200,
     useGolden: false, useBomb: false, useHelmet: false, strictMiss: false, endless: false, maxMoles: 1,
   },
   {
     id: 'combo-adjacent', name: '🤝 同手・隣接連携', desc: '隣り合う指の切り替え！ゴールデンモグラ出現',
     keys: [...FINGER_KEYS['L-index'], ...FINGER_KEYS['L-middle'], ...FINGER_KEYS['R-index'], ...FINGER_KEYS['R-middle']],
-    clearScore: 400, duration: 60, spawnDelay: [800, 1300], moleTtl: 2500,
+    clearScore: 400, duration: 30, spawnDelay: [800, 1300], moleTtl: 2500,
     useGolden: true, useBomb: false, useHelmet: false, strictMiss: false, endless: false, maxMoles: 1,
   },
   {
     id: 'combo-cross', name: '✖ クロス連携', desc: '全部の指を使え！爆弾に注意',
     keys: KEYBOARD_ROWS.flat(),
-    clearScore: 450, duration: 60, spawnDelay: [800, 1300], moleTtl: 2500,
+    clearScore: 450, duration: 30, spawnDelay: [800, 1300], moleTtl: 2500,
     useGolden: true, useBomb: true, useHelmet: false, strictMiss: false, endless: false, maxMoles: 1,
   },
   {
     id: 'homepos', name: '🏠 ホームポジション維持', desc: '担当外のキーを押すと即ミス！Shiftモグラ出現',
     keys: KEYBOARD_ROWS.flat(),
-    clearScore: 500, duration: 60, spawnDelay: [700, 1200], moleTtl: 2300,
+    clearScore: 500, duration: 30, spawnDelay: [700, 1200], moleTtl: 2300,
     useGolden: true, useBomb: true, useHelmet: true, strictMiss: true, endless: false, maxMoles: 2,
   },
   {
@@ -1079,7 +1079,7 @@ export default function MoleGame({ currentUser, users }: MoleGameProps) {
                   className={`scale-btn${gameMode === 'score' ? ' scale-active' : ''}`}
                   onClick={() => handleGameModeChange('score')}
                 >
-                  スコアアタック (60秒制限)
+                  スコアアタック (30秒制限)
                 </button>
                 <button
                   className={`scale-btn${gameMode === 'timeAttack' ? ' scale-active' : ''}`}
