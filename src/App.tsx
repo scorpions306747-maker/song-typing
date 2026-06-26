@@ -682,22 +682,6 @@ export default function App() {
             </button>
           )}
           {!showMenu && (
-            <>
-              <button
-                className={`tab-btn${tab === 'mole' ? ' tab-active' : ''}`}
-                onClick={() => setTab('mole')}
-              >🔨 もぐらで訓練</button>
-              <button
-                className={`tab-btn${tab === 'typing' ? ' tab-active' : ''}`}
-                onClick={() => setTab('typing')}
-              >🎵 歌で訓練</button>
-              <button
-                className={`tab-btn${tab === 'kana' ? ' tab-active' : ''}`}
-                onClick={() => setTab('kana')}
-              >🈶 かな練習</button>
-            </>
-          )}
-          {!showMenu && (
             <button className="tab-btn" onClick={() => setShowMenu(true)}>🏠 メニュー</button>
           )}
         </div>
